@@ -16,6 +16,7 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
+import java.util.UUID
 
 fun main() {
     val sample = S3Sample()
@@ -39,101 +40,24 @@ class S3Sample {
         s3.setRegion(usWest2)
 
         val bucketName = "test-default-notification-service-files"
-        val key = "MyObjectKey"
+        val key = "abc/MyObjectKey_20190923"
+        val offerRoundId = UUID.fromString("cb2c5faf-fda4-4b61-95f7-3d6793244033")
+        val simulationId = UUID.fromString("ab390161-183a-4b8e-83a8-f7e306f0c6f4")
+        val key1 = "abc/$offerRoundId/$simulationId"
+        val key2 = "abc/$offerRoundId/$simulationId/readme.txt"
 
         println("===========================================")
         println("Getting Started with Amazon S3")
         println("===========================================\n")
 
         try {
-            /*
-                        * Create a new S3 bucket - Amazon S3 bucket names are globally unique,
-                        * so once a bucket name has been taken by any user, you can't create
-                        * another bucket with that same name.
-                        *
-                        * You can optionally specify a location for your bucket if you want to
-                        * keep your data closer to your applications or users.
-                        */
-            //            System.out.println("Creating bucket " + bucketName + "\n");
-            //            s3.createBucket(bucketName);
 
-            /*
-             * List the buckets in your account
-             */
-            //            System.out.println("Listing buckets");
-            //            for (Bucket bucket : s3.listBuckets()) {
-            //                System.out.println(" - " + bucket.getName());
-            //            }
-            //            System.out.println();
+            uploadFile(s3, bucketName, key2)
 
-            /*
-             * Upload an object to your bucket - You can easily upload a file to
-             * S3, or upload directly an InputStream if you know the length of
-             * the data in the stream. You can also specify your own metadata
-             * when uploading to S3, which allows you set a variety of options
-             * like content-type and content-encoding, plus additional metadata
-             * specific to your applications.
-             */
-            println("Uploading a new object to S3 from a file\n")
-            val metaData = ObjectMetadata()
-            val dummy = "dummy"
-            val fileInputStream = FileInputStream(createSampleFile())
-            metaData.addUserMetadata("myName", "David")
-            metaData.contentLength = fileInputStream.available().toLong()
-            metaData.contentType = "application/octet-stream"
-            metaData.contentDisposition = "attachment"
-            metaData.sseAlgorithm = ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
-            s3.putObject(PutObjectRequest(bucketName, key, fileInputStream, metaData))
-//            s3.putObject(PutObjectRequest(bucketName, key, ByteArrayInputStream(dummy.toByteArray()), metaData))
+            downloadFile(s3, bucketName, key)
 
-            /*
-                        * Download an object - When you download an object, you get all of
-                        * the object's metadata and a stream from which to read the contents.
-                        * It's important to read the contents of the stream as quickly as
-                        * possibly since the data is streamed directly from Amazon S3 and your
-                        * network connection will remain open until you read all the data or
-                        * close the input stream.
-                        *
-                        * GetObjectRequest also supports several other options, including
-                        * conditional downloading of objects based on modification times,
-                        * ETags, and selectively downloading a range of an object.
-                        */
-            println("Downloading an object")
-            val downloadObject = s3.getObject(GetObjectRequest(bucketName, key))
-            println(
-                String.format(
-                    "Get meta data{ myName : %s } ",
-                    downloadObject.objectMetadata.userMetadata["myName"]
-                )
-            )
-            println("Content-Type: " + downloadObject.objectMetadata.contentType)
-            displayTextInputStream(downloadObject.objectContent)
-
-            /*
-                        * List objects in your bucket by prefix - There are many options for
-                        * listing the objects in your bucket.  Keep in mind that buckets with
-                        * many objects might truncate their results when listing their objects,
-                        * so be sure to check if the returned object listing is truncated, and
-                        * use the AmazonS3.listNextBatchOfObjects(...) operation to retrieve
-                        * additional results.
-                        */
-            println("Listing objects")
-            val objectListing = s3.listObjects(
-                ListObjectsRequest()
-                    .withBucketName(bucketName)
-            )
-            //                    .withPrefix("My"));
-            for (objectSummary in objectListing.objectSummaries) {
-                println(
-                    " - " + objectSummary.key + "  " +
-                        "(size = " + objectSummary.size + ")"
-                )
-                println("Key: " + objectSummary.key)
-                val `object` = s3.getObject(GetObjectRequest(bucketName, objectSummary.key))
-                println("Content-Type: " + `object`.objectMetadata.contentType)
-                displayTextInputStream(`object`.objectContent)
-            }
-            println()
+            checkExist(s3, bucketName, key1)
+            listFiles(s3, bucketName)
 
             /*
                         * Delete an object - Unless versioning has been turned on for your bucket,
@@ -165,6 +89,57 @@ class S3Sample {
             println("Error Message: " + ace.message)
         }
 
+    }
+
+    private fun checkExist(s3: AmazonS3Client, bucketName: String, key: String) {
+        val exist = s3.doesObjectExist(bucketName, key)
+        println("Object under bucket : $bucketName with key $key exist: $exist")
+    }
+
+    private fun listFiles(s3: AmazonS3Client, bucketName: String) {
+        println("Listing objects")
+        val objectListing = s3.listObjects(
+            ListObjectsRequest()
+                .withBucketName(bucketName).withPrefix("abc1")
+        )
+        //                    .withPrefix("My"));
+        for (objectSummary in objectListing.objectSummaries) {
+            println(
+                " - " + objectSummary.key + "  " +
+                    "(size = " + objectSummary.size + ")"
+            )
+            println("Key: " + objectSummary.key)
+            val `object` = s3.getObject(GetObjectRequest(bucketName, objectSummary.key))
+            println("Content-Type: " + `object`.objectMetadata.contentType)
+            displayTextInputStream(`object`.objectContent)
+        }
+    }
+
+    private fun downloadFile(s3: AmazonS3Client, bucketName: String, key: String) {
+        println("Downloading an object")
+        val downloadObject = s3.getObject(GetObjectRequest(bucketName, key))
+        println(
+            String.format(
+                "Get meta data{ myName : %s } ",
+                downloadObject.objectMetadata.userMetadata["myName"]
+            )
+        )
+        println("Content-Type: " + downloadObject.objectMetadata.contentType)
+        displayTextInputStream(downloadObject.objectContent)
+    }
+
+    private fun uploadFile(s3: AmazonS3Client, bucketName: String, key: String) {
+        println("Uploading a new object to S3 from a file\n")
+        val metaData = ObjectMetadata()
+        val dummy = "dummy"
+        val fileInputStream = FileInputStream(createSampleFile())
+        metaData.addUserMetadata("myName", "David")
+        metaData.contentLength = fileInputStream.available().toLong()
+        metaData.contentType = "application/octet-stream"
+        metaData.contentDisposition = "attachment"
+        metaData.sseAlgorithm = ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION
+        metaData.userMetadata["test"] = (1..2000).map { "a" }.reduce { a, b -> a + b }
+        s3.putObject(PutObjectRequest(bucketName, key, fileInputStream, metaData))
     }
 
     private fun createSampleFile(): File {

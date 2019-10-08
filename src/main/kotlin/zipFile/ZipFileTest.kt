@@ -2,9 +2,12 @@ package zipFile
 
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.lang.Exception
 import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 //******Target******
@@ -37,6 +40,36 @@ class Demo {
         println("Zip file created...")
     }
 
+    private fun createUnZipInputStream(zipFile: File) {
+        println("Before create unzip file...")
+        val zip = ZipInputStream(FileInputStream(zipFile))
+        val baseName = zipFile.name.split(".").first()
+        var entry: ZipEntry
+        try {
+//            while (true) {
+            while (zip.nextEntry.also { entry = it } != null) {
+//                val entry = zip.nextEntry
+//                if (entry == null) {
+//                    println("bad happen")
+//                }
+                if (!entry.isDirectory) {
+                    println("-${entry.name}")
+                    val file = File("$baseName/${entry.name}")
+                    if (!File(file.parent).exists())
+                        File(file.parent).mkdirs()
+                    val fos = FileOutputStream(file)
+                    fos.write(zip.readAllBytes())
+                    fos.close()
+                }
+
+            }
+        } catch (e: Exception) {
+            println(e.message)
+        }
+
+        println("UnZip file ${zipFile.name}...")
+    }
+
     private fun constructZipEntry(inputStreamResources: List<InputStreamResource>, zos: ZipOutputStream) {
         val departmentStr = "department"
         inputStreamResources.forEach { constructZipEntry(it, zos, departmentStr) }
@@ -67,7 +100,8 @@ class Demo {
             )
             summary = InputStreamResource("summary.txt", "summary list here".byteInputStream())
         }
-        createZipOutputStream(thoughtworks)
+//        createZipOutputStream(thoughtworks)
+        createUnZipInputStream(File("sample.zip"))
     }
 }
 

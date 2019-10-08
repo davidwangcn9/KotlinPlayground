@@ -7,10 +7,14 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.InvalidParameterException
 import java.time.Instant
 import java.util.Optional
+import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentSkipListSet
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.FutureTask
 
 val sets = ConcurrentSkipListSet<String>()
 
@@ -67,12 +71,26 @@ fun main(args: Array<String>) {
 //    (1..11).map { Data(it) }.toList().batchLaunch(5) {
 //        runData(it)
 //    }
-    (1..11).map { Data(it) }.toList().batchExecute(5) {
-        runData(it)
+    try {
+        (1..11).map { Data(it) }.toList().batchExecuteCallable(5) {
+            runData(it)
+        }
+    } catch (e: Exception) {
+        println(e.message)
+//        tasks!!.filter { !it.isDone }.map { it.cancel(true) }
     }
 
-    Thread.sleep(300L)
+
+//    Thread.sleep(300L)
     println("Threads: $sets ; size: ${sets.size}")
+}
+
+fun <T> waitUntilDone(task: Future<T>) {
+    try {
+        task.get()
+    } catch (e: java.lang.Exception) {
+        println("Got exception: ${e.message}")
+    }
 }
 
 val batchSize: Int = 5
@@ -106,6 +124,23 @@ fun <T> Collection<T>.batchExecute(parallelNumber: Int, action: (T) -> Unit) {
     }
 }
 
+fun <T, TR> Collection<T>.batchExecuteCallable(parallelNumber: Int, action: (T) -> TR) {
+    val collection = this
+    var service = Executors.newFixedThreadPool(parallelNumber)
+    val results = mutableListOf<Future<TR>>()
+    collection.forEach {
+        val result = service.submit(Callable<TR> { action(it) })
+        results.add(result)
+    }
+    try {
+        results.map { it.get() }
+    } catch (e: Exception) {
+        println(e.message)
+        results.filter { !it.isDone }.map { it.cancel(true) }
+        throw e
+    }
+}
+
 
 fun request(index: Int) {
     var connection: HttpURLConnection? = null
@@ -126,9 +161,10 @@ fun request(index: Int) {
 
 fun runData(taskIndex: Data): Int {
     var now = Instant.now()
+    if (taskIndex.index == 1) throw InvalidParameterException("bad index : ${taskIndex.index}")
     println("***$now Processing ${taskIndex.index} with thread: ${getCurrentThreadName()}")
-    request(taskIndex.index)
-//    Thread.sleep(1000)
+//    request(taskIndex.index)
+    Thread.sleep(2000)
 //    delay(1000)
     now = Instant.now()
     println("---$now Complete ${taskIndex.index} with thread: ${getCurrentThreadName()}")
